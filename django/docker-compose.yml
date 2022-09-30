@@ -1,0 +1,93 @@
+version: '3'
+
+services:
+
+  mariadb-dj:
+    image: mysql
+    container_name: mariadb-dj
+    volumes:
+      - $PWD/save/sql:/var/lib/mysql
+    ports:
+      - 3306:3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=qweQWE123
+      - MYSQL_DATABASE=django
+      - MYSQL_USER=django_user
+      - MYSQL_PASSWORD=qweQWE123
+    networks:
+      - dj
+
+  web-dj:
+    #https://pythonlang.dev/repo/korfuri-django-prometheus/
+    #ID grafana: 9528
+    image: py-django
+    container_name: web-dj
+    volumes:
+      - $PWD/code:/code
+     
+    depends_on:
+      - mariadb-dj
+    command: bash -c "python3 /code/manage.py migrate && python3 /code/manage.py runserver 0.0.0.0:80" 
+    ports:
+      - 80:80
+    environment:
+      - DB_server=db
+      - DB_user=django_user
+      - DB_database=django
+      - DB_pass=qweQWE123
+      - DB_port=3306
+    networks:
+      - dj
+    
+    restart: on-failure
+
+
+  grafana-dj:
+    container_name: grafana-dj
+    image: grafana/grafana
+    ports:
+      - '3000:3000'
+    volumes:
+      - $PWD/save/grafana:/var/lib/grafana
+    networks:
+      - dj
+
+  mariadb-pr-dj:
+   #ID grafana: 14057
+    container_name: mariadb-pr-dj
+    image: prom/mysqld-exporter
+    environment:
+      - DATA_SOURCE_NAME="dajngo_user:qweQWE123@(mariadb-dj:3306)/django"
+      - collect.info_schema.tablestats=true
+      - collect.info_schema.userstats=true
+      - collect.info_schema.query_response_time=true
+      - collect.auto_increment.columns=true
+      - collect.binlog_size=true
+      - collect.perf_schema.eventsstatements=true
+      - collect.perf_schema.eventswaits=true
+      - collect.perf_schema.file_events=true
+      - collect.perf_schema.indexiowaits=true
+      - collect.perf_schema.tableiowaits=true
+      - collect.perf_schema.tablelocks=true
+
+    ports:
+      - '9104:9104'
+    networks:
+      - dj
+
+
+  prometheus-dj:
+    image: prom/prometheus
+    container_name: prometheus-dj
+    volumes:
+      - $PWD/save/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - 9090:9090
+    restart: unless-stopped
+    networks:
+      - dj
+
+
+
+networks:
+  dj:
